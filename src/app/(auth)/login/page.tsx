@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState<"email" | "otp">("email");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -17,16 +20,33 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
     });
 
     setLoading(false);
     if (error) {
       setError(error.message);
     } else {
-      setSent(true);
+      setStep("otp");
+    }
+  }
+
+  async function handleVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: "email",
+    });
+
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+    } else {
+      router.push("/");
     }
   }
 
@@ -40,25 +60,59 @@ export default function LoginPage() {
           Your AI-powered cooking companion
         </p>
 
-        {sent ? (
-          <div className="text-center">
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6">
-              <p className="text-green-800 dark:text-green-200 font-medium">
-                Check your email
-              </p>
-              <p className="text-green-600 dark:text-green-400 text-sm mt-2">
-                We sent a magic link to <strong>{email}</strong>
+        {step === "otp" ? (
+          <div>
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4">
+              <p className="text-green-800 dark:text-green-200 text-sm">
+                We sent a 6-digit code to <strong>{email}</strong>
               </p>
             </div>
+
+            <form onSubmit={handleVerifyCode} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="otp"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  Verification code
+                </label>
+                <input
+                  id="otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-center text-2xl tracking-[0.3em] font-mono"
+                />
+              </div>
+
+              {error && <p className="text-red-500 text-sm">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={loading || otp.length < 6}
+                className="w-full py-3 px-4 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-xl text-base min-h-[44px] transition-colors"
+              >
+                {loading ? "Verifying..." : "Sign in"}
+              </button>
+            </form>
+
             <button
-              onClick={() => setSent(false)}
-              className="mt-4 text-sm text-gray-500 dark:text-gray-400 underline"
+              onClick={() => {
+                setStep("email");
+                setOtp("");
+                setError(null);
+              }}
+              className="mt-4 w-full text-sm text-gray-500 dark:text-gray-400 underline"
             >
               Use a different email
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSendCode} className="space-y-4">
             <div>
               <label
                 htmlFor="email"
@@ -77,16 +131,14 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
-              <p className="text-red-500 text-sm">{error}</p>
-            )}
+            {error && <p className="text-red-500 text-sm">{error}</p>}
 
             <button
               type="submit"
               disabled={loading}
               className="w-full py-3 px-4 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-xl text-base min-h-[44px] transition-colors"
             >
-              {loading ? "Sending..." : "Send magic link"}
+              {loading ? "Sending..." : "Send sign-in code"}
             </button>
           </form>
         )}
