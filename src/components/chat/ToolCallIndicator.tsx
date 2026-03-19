@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { ToolCallInfo } from "@/types/chat";
 
 const toolLabels: Record<string, string> = {
@@ -10,14 +11,14 @@ interface ToolCallIndicatorProps {
   toolCall: ToolCallInfo;
 }
 
-export default function ToolCallIndicator({ toolCall }: ToolCallIndicatorProps) {
+function ToolCallIndicatorInner({ toolCall }: ToolCallIndicatorProps) {
   const label = toolLabels[toolCall.name] ?? toolCall.name;
   const isPending = toolCall.status === "pending";
   const isSuccess = toolCall.status === "success";
 
   return (
     <div
-      className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg ${
+      className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg transition-colors ${
         isPending
           ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400"
           : isSuccess
@@ -34,3 +35,8 @@ export default function ToolCallIndicator({ toolCall }: ToolCallIndicatorProps) 
     </div>
   );
 }
+
+const ToolCallIndicator = memo(ToolCallIndicatorInner);
+ToolCallIndicator.displayName = "ToolCallIndicator";
+
+export default ToolCallIndicator;

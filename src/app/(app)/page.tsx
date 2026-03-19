@@ -5,26 +5,44 @@ import { useChat } from "@/hooks/useChat";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 
+function ChatSkeleton() {
+  return (
+    <div className="px-4 pt-4 space-y-3">
+      {/* Simulated message bubbles */}
+      <div className="flex justify-end">
+        <div className="h-10 w-48 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />
+      </div>
+      <div className="flex justify-start">
+        <div className="h-20 w-64 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />
+      </div>
+      <div className="flex justify-end">
+        <div className="h-10 w-36 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />
+      </div>
+      <div className="flex justify-start">
+        <div className="h-16 w-56 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const { messages, isStreaming, isLoading, sendMessage } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-3.5rem-env(safe-area-inset-bottom))]">
-        <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin" />
+      <div className="h-[calc(100vh-3.5rem-env(safe-area-inset-bottom))]">
+        <ChatSkeleton />
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem-env(safe-area-inset-bottom))]">
-      {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 pt-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
@@ -53,13 +71,16 @@ export default function ChatPage() {
         )}
 
         {messages.map((msg, i) => (
-          <ChatMessage key={i} message={msg} />
+          <ChatMessage
+            key={msg.id}
+            message={msg}
+            isStreaming={isStreaming && i === messages.length - 1}
+          />
         ))}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <ChatInput onSend={sendMessage} disabled={isStreaming} />
     </div>
   );

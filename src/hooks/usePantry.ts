@@ -9,7 +9,11 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 export function usePantry() {
   const { data, error, isLoading, mutate } = useSWR<PantryItem[]>(
     "/api/pantry",
-    fetcher
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    }
   );
 
   async function addItem(item: CreatePantryItem) {

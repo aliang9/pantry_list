@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Pantry Assistant",
@@ -34,7 +37,9 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased bg-white dark:bg-gray-950 text-gray-900 dark:text-white">
+      <body
+        className={`${inter.className} antialiased bg-white dark:bg-gray-950 text-gray-900 dark:text-white`}
+      >
         {children}
       </body>
     </html>

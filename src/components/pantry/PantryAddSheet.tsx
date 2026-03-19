@@ -62,8 +62,8 @@ export default function PantryAddSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full bg-white dark:bg-gray-900 rounded-t-2xl p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] max-h-[80vh] overflow-y-auto">
+      <div className="absolute inset-0 bg-black/40 animate-fade-in" onClick={onClose} />
+      <div className="relative w-full bg-white dark:bg-gray-900 rounded-t-2xl p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] max-h-[80vh] overflow-y-auto animate-slide-up">
         <div className="w-10 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" />
         <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
           Add item

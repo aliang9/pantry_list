@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import type { PantryItem } from "@/types/pantry";
 
 const categoryColors: Record<string, string> = {
@@ -18,7 +18,7 @@ interface PantryItemCardProps {
   onDelete: (id: string) => void;
 }
 
-export default function PantryItemCard({
+function PantryItemCardInner({
   item,
   onEdit,
   onDelete,
@@ -32,6 +32,10 @@ export default function PantryItemCard({
     new Date(item.expiration_date).getTime() - Date.now() <
       3 * 24 * 60 * 60 * 1000;
 
+  const isExpired =
+    item.expiration_date &&
+    new Date(item.expiration_date).getTime() < Date.now();
+
   function handleTouchStart(e: React.TouchEvent) {
     startX.current = e.touches[0].clientX;
     swiping.current = true;
@@ -40,7 +44,6 @@ export default function PantryItemCard({
   function handleTouchMove(e: React.TouchEvent) {
     if (!swiping.current) return;
     const diff = e.touches[0].clientX - startX.current;
-    // Only allow swipe left
     if (diff < 0) {
       setSwipeX(Math.max(diff, -80));
     }
@@ -56,7 +59,7 @@ export default function PantryItemCard({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-xl">
+    <div className="relative overflow-hidden rounded-2xl shadow-sm">
       {/* Delete button behind */}
       <div className="absolute inset-y-0 right-0 flex items-center">
         <button
@@ -69,7 +72,13 @@ export default function PantryItemCard({
 
       {/* Card content */}
       <div
-        className="relative bg-white dark:bg-gray-900 p-4 transition-transform"
+        className={`relative bg-white dark:bg-gray-900 p-4 transition-transform ${
+          isExpired
+            ? "border-l-4 border-red-500"
+            : isExpiringSoon
+              ? "border-l-4 border-amber-400"
+              : ""
+        }`}
         style={{ transform: `translateX(${swipeX}px)` }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -87,8 +96,13 @@ export default function PantryItemCard({
           </div>
 
           <div className="flex items-center gap-2 ml-3">
-            {isExpiringSoon && (
-              <span className="text-xs bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-0.5 rounded-full">
+            {isExpired && (
+              <span className="text-xs font-medium bg-red-500 text-white px-2.5 py-0.5 rounded-full">
+                Expired
+              </span>
+            )}
+            {isExpiringSoon && !isExpired && (
+              <span className="text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-2.5 py-0.5 rounded-full">
                 Expiring
               </span>
             )}
@@ -105,3 +119,8 @@ export default function PantryItemCard({
     </div>
   );
 }
+
+const PantryItemCard = memo(PantryItemCardInner);
+PantryItemCard.displayName = "PantryItemCard";
+
+export default PantryItemCard;

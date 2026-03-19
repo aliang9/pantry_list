@@ -5,6 +5,10 @@ import type { ChatMessage, ToolCallInfo, SSEEvent } from "@/types/chat";
 import { mutate } from "swr";
 import { createClient } from "@/lib/supabase/client";
 
+function genId() {
+  return crypto.randomUUID();
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -26,10 +30,15 @@ export function useChat() {
 
         if (data) {
           conversationIdRef.current = data.id;
-          setMessages(data.messages as ChatMessage[]);
+          // Ensure loaded messages have IDs
+          const msgs = (data.messages as ChatMessage[]).map((m) => ({
+            ...m,
+            id: m.id || genId(),
+          }));
+          setMessages(msgs);
         }
       } catch {
-        // No conversation history yet — that's fine
+        // No conversation history yet
       } finally {
         setIsLoading(false);
       }
@@ -47,7 +56,6 @@ export function useChat() {
         } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Strip tool call details for storage (keep it lean)
         const storedMessages = msgs.map((m) => ({
           role: m.role,
           content: m.content,
@@ -77,7 +85,7 @@ export function useChat() {
           }
         }
       } catch {
-        // Silent fail — conversation persistence is best-effort
+        // Silent fail — best-effort persistence
       }
     },
     []
@@ -85,33 +93,64 @@ export function useChat() {
 
   const sendMessage = useCallback(
     async (text: string) => {
-      const userMessage: ChatMessage = { role: "user", content: text };
-      const newMessages = [...messages, userMessage];
-      setMessages(newMessages);
-      setIsStreaming(true);
-
-      // Create a placeholder assistant message
+      const userMessage: ChatMessage = {
+        id: genId(),
+        role: "user",
+        content: text,
+      };
       const assistantMessage: ChatMessage = {
+        id: genId(),
         role: "assistant",
         content: "",
         toolCalls: [],
       };
-      setMessages([...newMessages, assistantMessage]);
+
+      const newMessages = [...messages, userMessage, assistantMessage];
+      setMessages(newMessages);
+      setIsStreaming(true);
 
       const abortController = new AbortController();
       abortRef.current = abortController;
 
-      let finalMessages = [...newMessages, assistantMessage];
+      // Refs for batched rendering
+      const textRef = { current: "" };
+      const toolCallsRef = { current: [] as ToolCallInfo[] };
+      const rafRef = { current: 0 };
+      const finalMessagesRef = { current: newMessages };
+
+      function flushToState() {
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            content: textRef.current,
+            toolCalls: [...toolCallsRef.current],
+          };
+          finalMessagesRef.current = updated;
+          return updated;
+        });
+      }
+
+      function scheduleFlush() {
+        if (!rafRef.current) {
+          rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = 0;
+            flushToState();
+          });
+        }
+      }
 
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: newMessages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
+            messages: newMessages
+              .filter((m) => m.content)
+              .map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
           }),
           signal: abortController.signal,
         });
@@ -125,16 +164,12 @@ export function useChat() {
 
         const decoder = new TextDecoder();
         let buffer = "";
-        let currentText = "";
-        const toolCalls: ToolCallInfo[] = [];
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-
-          // Parse SSE events from buffer
           const lines = buffer.split("\n");
           buffer = lines.pop() ?? "";
 
@@ -148,65 +183,38 @@ export function useChat() {
                 const event: SSEEvent = { type: eventType, data } as SSEEvent;
 
                 if (event.type === "text") {
-                  currentText += event.data as string;
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = {
-                      ...updated[updated.length - 1],
-                      content: currentText,
-                      toolCalls: [...toolCalls],
-                    };
-                    finalMessages = updated;
-                    return updated;
-                  });
+                  textRef.current += event.data as string;
+                  scheduleFlush();
                 } else if (event.type === "tool_call") {
                   const tcData = event.data as {
                     name: string;
                     input: Record<string, unknown>;
                   };
-                  toolCalls.push({
+                  toolCallsRef.current.push({
                     name: tcData.name,
                     input: tcData.input,
                     status: "pending",
                   });
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = {
-                      ...updated[updated.length - 1],
-                      toolCalls: [...toolCalls],
-                    };
-                    finalMessages = updated;
-                    return updated;
-                  });
+                  scheduleFlush();
                 } else if (event.type === "tool_result") {
                   const trData = event.data as {
                     name: string;
                     result: unknown;
                     success: boolean;
                   };
-                  const idx = toolCalls.findIndex(
+                  const idx = toolCallsRef.current.findIndex(
                     (tc) =>
                       tc.name === trData.name && tc.status === "pending"
                   );
                   if (idx !== -1) {
-                    toolCalls[idx] = {
-                      ...toolCalls[idx],
+                    toolCallsRef.current[idx] = {
+                      ...toolCallsRef.current[idx],
                       result: trData.result,
                       status: trData.success ? "success" : "error",
                     };
                   }
-                  // Invalidate pantry cache
                   mutate("/api/pantry");
-
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = {
-                      ...updated[updated.length - 1],
-                      toolCalls: [...toolCalls],
-                    };
-                    finalMessages = updated;
-                    return updated;
-                  });
+                  scheduleFlush();
                 }
               } catch {
                 // Skip malformed JSON
@@ -215,6 +223,13 @@ export function useChat() {
             }
           }
         }
+
+        // Final flush after stream ends
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = 0;
+        }
+        flushToState();
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           setMessages((prev) => {
@@ -225,15 +240,14 @@ export function useChat() {
                 updated[updated.length - 1].content ||
                 "Sorry, something went wrong. Please try again.",
             };
-            finalMessages = updated;
+            finalMessagesRef.current = updated;
             return updated;
           });
         }
       } finally {
         setIsStreaming(false);
         abortRef.current = null;
-        // Persist conversation after each exchange
-        saveConversation(finalMessages);
+        saveConversation(finalMessagesRef.current);
       }
     },
     [messages, saveConversation]
@@ -248,5 +262,12 @@ export function useChat() {
     abortRef.current?.abort();
   }, []);
 
-  return { messages, isStreaming, isLoading, sendMessage, stopStreaming, clearChat };
+  return {
+    messages,
+    isStreaming,
+    isLoading,
+    sendMessage,
+    stopStreaming,
+    clearChat,
+  };
 }
