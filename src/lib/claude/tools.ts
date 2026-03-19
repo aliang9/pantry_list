@@ -129,4 +129,111 @@ export const pantryTools: Tool[] = [
       required: [],
     },
   },
+  {
+    name: "save_recipe",
+    description:
+      "Save a recipe to the user's recipe collection. Use when the user wants to save a recipe you suggested, or when they share a recipe they want to keep. Always include a complete ingredient list and clear instructions.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description: "Recipe title.",
+        },
+        description: {
+          type: "string",
+          description: "Brief description of the dish.",
+        },
+        ingredients: {
+          type: "array",
+          description: "List of ingredients with quantities.",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Ingredient name." },
+              quantity: { type: "number", description: "Amount needed." },
+              unit: { type: "string", description: "Unit of measurement." },
+            },
+            required: ["name"],
+          },
+        },
+        instructions: {
+          type: "string",
+          description:
+            "Step-by-step cooking instructions. Use numbered steps.",
+        },
+        cuisine_type: {
+          type: "string",
+          description: "Cuisine type (e.g., Italian, Mexican, Asian).",
+        },
+        difficulty: {
+          type: "string",
+          enum: ["easy", "medium", "hard"],
+          description: "Difficulty level.",
+        },
+      },
+      required: ["title", "ingredients", "instructions"],
+    },
+  },
+  {
+    name: "log_cooking",
+    description:
+      "Record that the user cooked something and optionally deduct used ingredients from the pantry. Use when the user says they made, cooked, or prepared a meal.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description: "What was cooked (e.g., 'Chicken Stir Fry').",
+        },
+        notes: {
+          type: "string",
+          description: "Any notes about how it turned out.",
+        },
+        rating: {
+          type: "integer",
+          description: "Rating from 1-5 if the user mentions how it was.",
+        },
+        ingredients_used: {
+          type: "array",
+          description:
+            "Ingredients to deduct from the pantry. Estimate based on the recipe if not specified.",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Ingredient name." },
+              quantity: { type: "number", description: "Amount used." },
+              unit: { type: "string", description: "Unit." },
+            },
+            required: ["name"],
+          },
+        },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "search_recipes",
+    description:
+      "Search the user's saved recipes and cooking history. Use when they ask about past meals, want to find a recipe, or check their cooking history.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        search_term: {
+          type: "string",
+          description: "Search by recipe title or description.",
+        },
+        cuisine_type: {
+          type: "string",
+          description: "Filter by cuisine type.",
+        },
+        difficulty: {
+          type: "string",
+          enum: ["easy", "medium", "hard"],
+          description: "Filter by difficulty.",
+        },
+      },
+      required: [],
+    },
+  },
 ];

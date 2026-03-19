@@ -17,6 +17,28 @@ interface QueryPantryInput {
   expiring_within_days?: number;
 }
 
+interface SaveRecipeInput {
+  title: string;
+  description?: string;
+  ingredients: Array<{ name: string; quantity?: number; unit?: string }>;
+  instructions: string;
+  cuisine_type?: string;
+  difficulty?: string;
+}
+
+interface LogCookingInput {
+  title: string;
+  notes?: string;
+  rating?: number;
+  ingredients_used?: Array<{ name: string; quantity?: number; unit?: string }>;
+}
+
+interface SearchRecipesInput {
+  search_term?: string;
+  cuisine_type?: string;
+  difficulty?: string;
+}
+
 interface SuggestRecipeInput {
   cuisine_preference?: string;
   max_cooking_time_minutes?: number;
@@ -38,6 +60,15 @@ export async function executeTool(
     case "suggest_recipe":
       return executeSuggestRecipe(
         input as unknown as SuggestRecipeInput,
+        userId
+      );
+    case "save_recipe":
+      return executeSaveRecipe(input as unknown as SaveRecipeInput, userId);
+    case "log_cooking":
+      return executeLogCooking(input as unknown as LogCookingInput, userId);
+    case "search_recipes":
+      return executeSearchRecipes(
+        input as unknown as SearchRecipesInput,
         userId
       );
     default:
@@ -211,5 +242,179 @@ async function executeSuggestRecipe(
       dietary_restrictions: input.dietary_restrictions ?? [],
       must_use: input.must_use_ingredients ?? [],
     },
+  };
+}
+
+async function executeSaveRecipe(input: SaveRecipeInput, userId: string) {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("recipes")
+    .insert({
+      user_id: userId,
+      title: input.title,
+      description: input.description ?? null,
+      ingredients: input.ingredients,
+      instructions: input.instructions,
+      cuisine_type: input.cuisine_type ?? null,
+      difficulty: input.difficulty ?? null,
+      source: "ai_generated",
+    })
+    .select()
+    .single();
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return {
+    saved: true,
+    recipe: {
+      id: data.id,
+      title: data.title,
+      cuisine_type: data.cuisine_type,
+      difficulty: data.difficulty,
+      ingredient_count: input.ingredients.length,
+    },
+  };
+}
+
+async function executeLogCooking(input: LogCookingInput, userId: string) {
+  const supabase = createAdminClient();
+
+  // Try to find a matching saved recipe
+  let recipeId: string | null = null;
+  const { data: matchingRecipe } = await supabase
+    .from("recipes")
+    .select("id")
+    .eq("user_id", userId)
+    .ilike("title", `%${input.title}%`)
+    .limit(1)
+    .single();
+
+  if (matchingRecipe) {
+    recipeId = matchingRecipe.id;
+  }
+
+  // Insert cooking log
+  const { data: log, error: logError } = await supabase
+    .from("cooking_logs")
+    .insert({
+      user_id: userId,
+      recipe_id: recipeId,
+      title: input.title,
+      notes: input.notes ?? null,
+      rating: input.rating ?? null,
+    })
+    .select()
+    .single();
+
+  if (logError) {
+    return { error: logError.message };
+  }
+
+  // Deduct ingredients from pantry
+  const deducted: Array<{ name: string; success: boolean; detail?: string }> = [];
+
+  if (input.ingredients_used) {
+    for (const ing of input.ingredients_used) {
+      const { data: existing } = await supabase
+        .from("pantry_items")
+        .select("id, quantity, unit")
+        .eq("user_id", userId)
+        .ilike("name", ing.name)
+        .single();
+
+      if (existing) {
+        const qtyToDeduct = ing.quantity ?? 1;
+        const newQty = existing.quantity - qtyToDeduct;
+
+        if (newQty <= 0) {
+          await supabase
+            .from("pantry_items")
+            .delete()
+            .eq("id", existing.id);
+          deducted.push({
+            name: ing.name,
+            success: true,
+            detail: "removed (used up)",
+          });
+        } else {
+          await supabase
+            .from("pantry_items")
+            .update({ quantity: newQty })
+            .eq("id", existing.id);
+          deducted.push({
+            name: ing.name,
+            success: true,
+            detail: `${newQty} ${existing.unit} remaining`,
+          });
+        }
+      } else {
+        deducted.push({
+          name: ing.name,
+          success: false,
+          detail: "not found in pantry",
+        });
+      }
+    }
+  }
+
+  return {
+    logged: true,
+    cooking_log: {
+      id: log.id,
+      title: log.title,
+      rating: log.rating,
+      linked_recipe: recipeId ? true : false,
+    },
+    pantry_updates: deducted,
+  };
+}
+
+async function executeSearchRecipes(
+  input: SearchRecipesInput,
+  userId: string
+) {
+  const supabase = createAdminClient();
+
+  // Search recipes
+  let recipeQuery = supabase
+    .from("recipes")
+    .select("id, title, description, cuisine_type, difficulty, ingredients, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (input.search_term) {
+    recipeQuery = recipeQuery.or(
+      `title.ilike.%${input.search_term}%,description.ilike.%${input.search_term}%`
+    );
+  }
+  if (input.cuisine_type) {
+    recipeQuery = recipeQuery.ilike("cuisine_type", `%${input.cuisine_type}%`);
+  }
+  if (input.difficulty) {
+    recipeQuery = recipeQuery.eq("difficulty", input.difficulty);
+  }
+
+  const { data: recipes, error: recipeError } = await recipeQuery;
+
+  if (recipeError) {
+    return { error: recipeError.message };
+  }
+
+  // Get recent cooking logs
+  const { data: logs } = await supabase
+    .from("cooking_logs")
+    .select("id, title, notes, rating, cooked_at")
+    .eq("user_id", userId)
+    .order("cooked_at", { ascending: false })
+    .limit(10);
+
+  return {
+    recipes: recipes ?? [],
+    recent_cooking: logs ?? [],
+    recipe_count: recipes?.length ?? 0,
   };
 }

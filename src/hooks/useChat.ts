@@ -214,6 +214,8 @@ export function useChat() {
                     };
                   }
                   mutate("/api/pantry");
+                  mutate("/api/recipes");
+                  mutate("/api/cooking-log");
                   scheduleFlush();
                 }
               } catch {
