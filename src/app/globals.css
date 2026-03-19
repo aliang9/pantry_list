@@ -2,6 +2,16 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Mobile defaults */
+html, body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a, input, textarea, select {
+  touch-action: manipulation;
+}
+
 /* Hide scrollbar on filter chips */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

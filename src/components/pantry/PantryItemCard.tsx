@@ -25,7 +25,9 @@ function PantryItemCardInner({
 }: PantryItemCardProps) {
   const [swipeX, setSwipeX] = useState(0);
   const startX = useRef(0);
+  const startY = useRef(0);
   const swiping = useRef(false);
+  const directionLocked = useRef<"horizontal" | "vertical" | null>(null);
 
   const isExpiringSoon =
     item.expiration_date &&
@@ -38,19 +40,32 @@ function PantryItemCardInner({
 
   function handleTouchStart(e: React.TouchEvent) {
     startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
     swiping.current = true;
+    directionLocked.current = null;
   }
 
   function handleTouchMove(e: React.TouchEvent) {
     if (!swiping.current) return;
-    const diff = e.touches[0].clientX - startX.current;
-    if (diff < 0) {
-      setSwipeX(Math.max(diff, -80));
+
+    const diffX = e.touches[0].clientX - startX.current;
+    const diffY = e.touches[0].clientY - startY.current;
+
+    // Lock direction after 10px of movement
+    if (!directionLocked.current && (Math.abs(diffX) > 10 || Math.abs(diffY) > 10)) {
+      directionLocked.current =
+        Math.abs(diffX) > Math.abs(diffY) ? "horizontal" : "vertical";
+    }
+
+    // Only swipe horizontally if direction is locked horizontal
+    if (directionLocked.current === "horizontal" && diffX < 0) {
+      setSwipeX(Math.max(diffX, -80));
     }
   }
 
   function handleTouchEnd() {
     swiping.current = false;
+    directionLocked.current = null;
     if (swipeX < -50) {
       setSwipeX(-80);
     } else {
@@ -79,7 +94,7 @@ function PantryItemCardInner({
               ? "border-l-4 border-amber-400"
               : ""
         }`}
-        style={{ transform: `translateX(${swipeX}px)` }}
+        style={{ transform: `translateX(${swipeX}px)`, touchAction: "pan-y" }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

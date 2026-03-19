@@ -43,7 +43,15 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem-env(safe-area-inset-bottom))]">
-      <div className="flex-1 overflow-y-auto px-4 pt-4">
+      <div
+        className="flex-1 overflow-y-auto px-4 pt-4"
+        onTouchStart={() => {
+          // Dismiss keyboard when scrolling messages (iOS pattern)
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        }}
+      >
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
