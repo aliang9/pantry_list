@@ -45,7 +45,7 @@ export default function ChatPage() {
     <div className="flex flex-col h-[calc(100vh-3.5rem-env(safe-area-inset-bottom))]">
       <div
         className="flex-1 overflow-y-auto px-4 pt-4"
-        onTouchStart={() => {
+        onScroll={() => {
           // Dismiss keyboard when scrolling messages (iOS pattern)
           if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
