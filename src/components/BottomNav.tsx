@@ -107,7 +107,7 @@ export default function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-col items-center justify-center min-w-[44px] min-h-[44px] px-3 select-none transition-colors ${
+              className={`flex flex-col items-center justify-center min-w-[44px] min-h-[44px] px-3 select-none ${
                 isActive
                   ? "text-green-600 dark:text-green-400"
                   : "text-gray-400 dark:text-gray-500"
