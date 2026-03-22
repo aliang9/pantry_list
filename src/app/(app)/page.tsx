@@ -28,9 +28,14 @@ function ChatSkeleton() {
 export default function ChatPage() {
   const { messages, isStreaming, isLoading, sendMessage } = useChat();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasInitiallyScrolled = useRef(false);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!messages.length) return;
+    // Instant scroll on first load, smooth scroll for new messages
+    const behavior = hasInitiallyScrolled.current ? "smooth" : "instant";
+    messagesEndRef.current?.scrollIntoView({ behavior });
+    hasInitiallyScrolled.current = true;
   }, [messages]);
 
   if (isLoading) {
