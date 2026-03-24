@@ -24,6 +24,13 @@ function ChatMessageInner({ message, isStreaming }: ChatMessageProps) {
             : "bg-gray-100 dark:bg-gray-800/80 text-gray-900 dark:text-white"
         }`}
       >
+        {message.image && (
+          <img
+            src={`data:${message.image.mediaType};base64,${message.image.base64}`}
+            alt="Uploaded"
+            className="rounded-xl mb-2 max-h-48 w-auto"
+          />
+        )}
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className="mb-2 space-y-1.5">
             {message.toolCalls.map((tc, i) => (
@@ -69,10 +76,10 @@ function ChatMessageInner({ message, isStreaming }: ChatMessageProps) {
 }
 
 const ChatMessage = memo(ChatMessageInner, (prev, next) => {
-  // Only re-render if content or tool calls actually changed
   return (
     prev.message.content === next.message.content &&
     prev.message.toolCalls === next.message.toolCalls &&
+    prev.message.image === next.message.image &&
     prev.isStreaming === next.isStreaming
   );
 });

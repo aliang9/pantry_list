@@ -8,7 +8,7 @@ const anthropic = new Anthropic();
 
 interface ChatMessage {
   role: "user" | "assistant";
-  content: string;
+  content: string | Anthropic.ContentBlockParam[];
 }
 
 function sseEncode(event: string, data: unknown): string {

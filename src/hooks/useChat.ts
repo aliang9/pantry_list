@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { ChatMessage, ToolCallInfo, SSEEvent } from "@/types/chat";
+import type { ChatMessage, ImageData, ToolCallInfo, SSEEvent } from "@/types/chat";
 import { mutate } from "swr";
 import { createClient } from "@/lib/supabase/client";
 
@@ -59,6 +59,7 @@ export function useChat() {
         const storedMessages = msgs.map((m) => ({
           role: m.role,
           content: m.content,
+          hasImage: !!m.image, // Store flag only, not the base64 data
           toolCalls: m.toolCalls?.map((tc) => ({
             name: tc.name,
             status: tc.status,
@@ -92,11 +93,12 @@ export function useChat() {
   );
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, image?: ImageData) => {
       const userMessage: ChatMessage = {
         id: genId(),
         role: "user",
         content: text,
+        image,
       };
       const assistantMessage: ChatMessage = {
         id: genId(),
@@ -146,11 +148,28 @@ export function useChat() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: newMessages
-              .filter((m) => m.content)
-              .map((m) => ({
-                role: m.role,
-                content: m.content,
-              })),
+              .filter((m) => m.content || m.image)
+              .map((m) => {
+                if (m.image) {
+                  return {
+                    role: m.role,
+                    content: [
+                      {
+                        type: "image",
+                        source: {
+                          type: "base64",
+                          media_type: m.image.mediaType,
+                          data: m.image.base64,
+                        },
+                      },
+                      ...(m.content
+                        ? [{ type: "text", text: m.content }]
+                        : []),
+                    ],
+                  };
+                }
+                return { role: m.role, content: m.content };
+              }),
           }),
           signal: abortController.signal,
         });

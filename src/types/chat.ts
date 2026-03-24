@@ -1,7 +1,13 @@
+export interface ImageData {
+  base64: string;
+  mediaType: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  image?: ImageData;
   toolCalls?: ToolCallInfo[];
 }
 
